@@ -6,7 +6,7 @@
     "sourceMap": true,
     "noImplicitAny": true,
     "declaration": true,
-    "module": "ESNext",
+    "module": "NodeNext",
     "moduleResolution": "nodenext"
   },
 

@@ -1,6 +1,6 @@
 import { Upload } from '@aws-sdk/lib-storage';
 import mime from 'mime-types';
-import { spawn } from 'node:child_process';
+import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { ReadStream, createReadStream } from 'node:fs';
 import { unlink } from 'node:fs/promises';
 import { extname, join } from 'node:path';
@@ -19,13 +19,51 @@ type FileData = {
 	contentType: string;
 };
 
-const snowflake = new Snowflake();
+const snowflake = new Snowflake(config.MACHINE_ID);
 
-const pbcopy = async (text: string) => {
+const copy = async (text: string) => {
 	return new Promise((resolve, reject) => {
-		const proc = spawn('pbcopy');
-		proc.on('error', reject);
-		proc.on('close', resolve);
+		let proc: ChildProcessWithoutNullStreams;
+
+		if (process.platform === 'darwin') {
+			proc = spawn('pbcopy');
+		} else if (process.platform === 'linux') {
+			// Check if Wayland is being used
+			const isWayland = process.env.XDG_SESSION_TYPE === 'wayland';
+			if (isWayland) {
+				proc = spawn('wl-copy');
+			} else {
+				proc = spawn('xclip', ['-selection', 'clipboard']);
+			}
+		} else {
+			reject(new Error('Unsupported platform for clipboard operations'));
+			return;
+		}
+
+		proc.on('error', (err: NodeJS.ErrnoException) => {
+			if (err.code === 'ENOENT') {
+				reject(
+					new Error(
+						`Clipboard utility not found. Please install ${
+							process.platform === 'darwin'
+								? 'pbcopy'
+								: process.env.XDG_SESSION_TYPE === 'wayland'
+								? 'wl-clipboard'
+								: 'xclip'
+						}`,
+					),
+				);
+			} else {
+				reject(err);
+			}
+		});
+		proc.on('close', (code) => {
+			if (code === 0) {
+				resolve(undefined);
+			} else {
+				reject(new Error(`Clipboard operation failed with code ${code}`));
+			}
+		});
 		proc.stdin?.write(text);
 		proc.stdin?.end();
 	});
@@ -58,7 +96,7 @@ const upload = async (name: string) => {
 		await upload.done();
 		// copy lik to clipboard
 		const link = `${BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`}${key}`;
-		await pbcopy(link);
+		await copy(link);
 		// delete file
 		await unlink(join(DIR, name));
 	} catch (err) {

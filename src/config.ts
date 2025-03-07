@@ -10,6 +10,13 @@ const configSchema = z.object({
 	WATCH_DIR: z.string(),
 	BASE_URL: z.string().url(),
 	BUCKET: z.string(),
+	MACHINE_ID: z.string().transform((val) => {
+		const num = parseInt(val, 10);
+		if (isNaN(num) || num < 0 || num > 1023) {
+			throw new Error('MACHINE_ID must be a number between 0 and 1023');
+		}
+		return num;
+	}),
 });
 
 const envConfig = {
@@ -19,6 +26,7 @@ const envConfig = {
 	WATCH_DIR: process.env.WATCH_DIR,
 	BASE_URL: process.env.BASE_URL,
 	BUCKET: process.env.BUCKET,
+	MACHINE_ID: process.env.MACHINE_ID ?? '0',
 };
 
 const valid = configSchema.safeParse(envConfig);

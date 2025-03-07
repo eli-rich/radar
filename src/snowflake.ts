@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import config from './config.js';
 import { LOG_LEVEL, log } from './logger.js';
 
 export const EPOCH = dayjs('2002-07-18 17:17 -5:00', 'YYYY-MM-DD HH:mm Z');
@@ -10,9 +11,14 @@ export class Snowflake {
 	lastNow: number;
 	constructor(public id?: number) {
 		this.timestamp = EPOCH.valueOf();
-		this.machineId = id ?? 0;
+		this.machineId = id ?? config.MACHINE_ID;
 		this.sequence = 0;
 		this.lastNow = 0;
+		if (this.machineId < 0 || this.machineId > 1023) {
+			const err = new Error('Machine ID must be between 0 and 1023');
+			log(LOG_LEVEL.FATAL, err);
+			throw err;
+		}
 	}
 	get slug(): string {
 		const now = dayjs();
@@ -22,6 +28,7 @@ export class Snowflake {
 		if (diff < 0) {
 			const err = new Error('Time is moving backwards!');
 			log(LOG_LEVEL.FATAL, err);
+			throw err;
 		}
 		// signed bit
 		let result = '';
@@ -40,6 +47,13 @@ export class Snowflake {
 		// 1 bit for signed bit
 
 		this.sequence++;
+
+		if (this.sequence > 4095) {
+			// Either wait for next millisecond or throw an error
+			const err = new Error('Sequence number overflow');
+			log(LOG_LEVEL.FATAL, err);
+			throw err;
+		}
 
 		const flakeId = BigInt(`0b${result}`);
 		const buf = Buffer.alloc(8);
