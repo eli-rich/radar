@@ -30,11 +30,7 @@ const copy = async (text: string) => {
 		} else if (process.platform === 'linux') {
 			// Check if Wayland is being used
 			const isWayland = process.env.XDG_SESSION_TYPE === 'wayland';
-			if (isWayland) {
-				proc = spawn('wl-copy');
-			} else {
-				proc = spawn('xclip', ['-selection', 'clipboard']);
-			}
+			proc = isWayland ? spawn('wl-clip') : spawn('xclip', ['-selection', 'clipboard']);
 		} else {
 			reject(new Error('Unsupported platform for clipboard operations'));
 			return;
